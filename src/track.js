@@ -296,6 +296,18 @@ export default function extractTracks(file) {
                 });
             }));
 
+    case 'derive':
+        return readFile(file, 'text', true)
+            .then(textContents => {
+                const tracks = JSON.parse(textContents);
+                return tracks.map(track => {
+                    if (track.timestamp) {
+                        track.timestamp = new Date(track.timestamp);
+                    }
+                    return track;
+                });
+            });
+
     default:
         throw `Unsupported file format: ${format}`;
     }

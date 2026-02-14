@@ -1,6 +1,7 @@
 import picoModal from 'picomodal';
 import extractTracks from './track';
 import Image from './image';
+import leafletProviders from 'leaflet-providers';
 
 const AVAILABLE_THEMES = [
     'CartoDB.DarkMatter',
@@ -17,13 +18,16 @@ const AVAILABLE_THEMES = [
     'Stamen.TonerBackground',
     'Stamen.Watercolor',
     'CyclOSM',
+    'Esri.WorldGrayCanvas',
+    'Stadia.AlidadeSmooth',
+    'Stamen.Watercolor',
     'No map',
 ];
 
 const MODAL_CONTENT = {
     help: `
 <h1>dérive</h1>
-<h4>Drag and drop one or more GPX/TCX/FIT/IGC/SKIZ files or JPEG images here.</h4>
+<h4>Drag and drop one or more GPX/TCX/FIT/IGC/SKIZ/DERIVE files or JPEG images here.</h4>
 <p>If you use Strava, go to your
 <a href="https://www.strava.com/athlete/delete_your_account">account download
 page</a> and click "Request your archive". You'll get an email containing a ZIP
@@ -66,13 +70,8 @@ href="http://library.nothingness.org/articles/SI/en/display/314">[1]</a></cite>
 `
 };
 
-// Adapted from: http://www.html5rocks.com/en/tutorials/file/dndfiles/
-function handleFileSelect(map, evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
-
+function processFiles(map, files) {
     let tracks = [];
-    let files = Array.from(evt.dataTransfer.files);
     let modal = buildUploadModal(files.length);
 
     modal.show();
@@ -106,12 +105,24 @@ function handleFileSelect(map, evt) {
         }
     };
 
-    Promise.all(files.map(handleFile)).then(() => {
+    const BATCH_SIZE = 50;
+    (async () => {
+        for (let i = 0; i < files.length; i += BATCH_SIZE) {
+            await Promise.all(files.slice(i, i + BATCH_SIZE).map(handleFile));
+        }
         map.center();
         modal.finished();
-    });
+    })();
 }
 
+// Adapted from: http://www.html5rocks.com/en/tutorials/file/dndfiles/
+function handleFileSelect(map, evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    let files = Array.from(evt.dataTransfer.files);
+    processFiles(map, files);
+}
 
 function handleDragOver(evt) {
     evt.dataTransfer.dropEffect = 'copy';
@@ -424,4 +435,34 @@ export function initialize(map) {
         }
         handleFileSelect(map, e);
     }, false);
+    // loadDebugData(map);
+}
+
+async function loadDebugData(map) {
+    try {
+        const ctx = require.context('../data', true, /\.(gpx|tcx|fit.gz|fit|igc|skiz|derive|jpe?g)$/i);
+        const keys = ctx.keys();
+        const files = [];
+        const BATCH_SIZE = 50;
+
+        for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+            const batch = await Promise.all(keys.slice(i, i + BATCH_SIZE).map(async key => {
+                const module = ctx(key);
+                // If using file-loader, module is the URL. If raw-loader, it's content.
+                // Assuming file-loader/url-loader for these assets in webpack config.
+                const url = module.default || module;
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const filename = key.split('/').pop();
+                return new File([blob], filename, { type: blob.type });
+            }));
+            files.push(...batch);
+        }
+
+        if (files.length > 0) {
+            processFiles(map, files);
+        }
+    } catch (e) {
+        console.debug('No debug data found in ../data', e);
+    }
 }

@@ -6,7 +6,21 @@ module.exports = {
         path: __dirname,
         filename: 'bundle.js'
     },
-    module: {},
+    module: {
+        rules: [
+            {
+                test: /\.(gpx|tcx|fit\.gz|fit|igc|skiz|derive|jpe?g)$/i,
+                use: [
+                    {
+                        loader: 'file-loader',
+                        options: {
+                            name: 'data/[name].[ext]'
+                        }
+                    }
+                ]
+            }
+        ]
+    },
     node: {
         fs: 'empty'
     }

@@ -13,9 +13,9 @@ const INIT_COORDS = [34.0522, -118.243];
 const DEFAULT_OPTIONS = {
     theme: 'CartoDB.DarkMatter',
     lineOptions: {
-        color: '#0CB1E8',
-        weight: 1,
-        opacity: 0.5,
+        color: '#00FFFF',
+        weight: 2,
+        opacity: 0.1,
         smoothFactor: 1,
         overrideExisting: true,
         detectColors: true,
@@ -30,11 +30,11 @@ const DEFAULT_OPTIONS = {
 
 // Color mapping for different activity types
 const ACTIVITY_COLORS = {
-    'walking': '#ffc0cb',
-    'hiking': '#ffc0cb',
-    'running': '#ff0000',
-    'cycling': '#00ff00',
-    'swimming': '#0000ff',
+    'walking': '#FF69B4',
+    'hiking': '#FF69B4',
+    'running': '#FF0055',
+    'cycling': '#00FF00',
+    'swimming': '#00FFFF',
 };
 
 
@@ -117,6 +117,18 @@ export default class GpxMap {
                     this.center();
                 },
             }],
+        }).addTo(this.map);
+
+        leaflet.easyButton({
+            type: 'animate',
+            states: [{
+                icon: 'fa-floppy-o fa-lg',
+                stateName: 'default',
+                title: 'Save tracks',
+                onClick: () => {
+                    this.saveTracks();
+                }
+            }]
         }).addTo(this.map);
 
         this.markScrolled = () => {
@@ -323,6 +335,26 @@ export default class GpxMap {
         if (!this.scrolled) {
             this.clearScroll();
         }
+    }
+
+    async saveTracks() {
+        const data = this.tracks.map(t => ({
+            points: t.points,
+            timestamp: t.timestamp,
+            name: t.name,
+            activityType: t.activityType
+        }));
+
+        const json = JSON.stringify(data);
+        const blob = new Blob([json], {type: 'application/json'});
+        const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
+        const compressedResponse = new Response(stream);
+        const compressedBlob = await compressedResponse.blob();
+
+        const link = document.createElement('a');
+        link.download = 'tracks.derive';
+        link.href = URL.createObjectURL(compressedBlob);
+        link.click();
     }
 
     screenshot(format, domNode) {
